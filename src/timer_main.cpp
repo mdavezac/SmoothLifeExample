@@ -12,13 +12,13 @@ int main(int argc, char **argv) {
   std::clock_t start = std::clock();
   Smooth smooth(50);
   std::clock_t setup = std::clock();
-  smooth.SeedRing();
+  smooth.AddRing();
   std::clock_t seed = std::clock();
   unsigned int frames = 10;
   std::vector<std::clock_t> frame_times(frames + 1);
   for(unsigned int frame = 0; frame < frames; frame++) {
     frame_times[frame] = std::clock();
-    smooth.QuickUpdate();
+    smooth.Update();
   }
   frame_times[frames] = std::clock();
   timings << "size: " << smooth.Size() << std::endl;

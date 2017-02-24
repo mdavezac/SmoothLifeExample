@@ -6,19 +6,19 @@
 
 Smooth::Smooth(int sizex, int sizey, distance inner, filling birth_1, filling birth_2,
                filling death_1, filling death_2, filling smoothing_disk, filling smoothing_ring)
-    : sizex(sizex), sizey(sizey), field(sizex, std::vector<density>(sizey)),
-      work_field(sizex, std::vector<density>(sizey)), inner(inner), birth_1(birth_1),
-      birth_2(birth_2), death_1(death_1), death_2(death_2), smoothing_disk(smoothing_disk),
-      smoothing_ring(smoothing_ring), outer(inner * 3), smoothing(1.0) {
+    : sizex(sizex), sizey(sizey), field(sizex * sizey), work_field(sizex * sizey), inner(inner),
+      birth_1(birth_1), birth_2(birth_2), death_1(death_1), death_2(death_2),
+      smoothing_disk(smoothing_disk), smoothing_ring(smoothing_ring), outer(inner * 3),
+      smoothing(1.0) {
   normalisation_disk = NormalisationDisk();
   normalisation_ring = NormalisationRing();
 }
 
-int Smooth::Range() { return outer + smoothing / 2; }
+int Smooth::Range() const { return outer + smoothing / 2; }
 
-int Smooth::Sizex() { return sizex; }
-int Smooth::Sizey() { return sizey; }
-int Smooth::Size() { return sizex * sizey; }
+int Smooth::Sizex() const { return sizex; }
+int Smooth::Sizey() const { return sizey; }
+int Smooth::Size() const { return sizex * sizey; }
 
 double Smooth::Disk(distance radius) const {
   if(radius > inner + smoothing / 2) {
@@ -47,28 +47,23 @@ double Smooth::Ring(distance radius) const {
 }
 
 double Smooth::Sigmoid(double variable, double center, double width) {
-  return 1.0 / (1.0 + std::exp(4.0 * (center - variable) / width));
+  return Sigmoid(variable - center, width);
+}
+double Smooth::Sigmoid(double x, double width) { return 1.0 / (1.0 + std::exp(-4.0 * x / width)); }
+
+density Smooth::Transition(filling disk, filling ring) const {
+  auto const sdisk = Sigmoid(disk - 0.5, smoothing_disk);
+  auto const t1 = birth_1 * (1.0 - sdisk) + death_1 * sdisk;
+  auto const t2 = birth_2 * (1.0 - sdisk) + death_2 * sdisk;
+  return Sigmoid(ring - t1, smoothing_ring) * Sigmoid(t2 - ring, smoothing_ring);
 }
 
-density Smooth::transition(filling disk, filling ring) const {
-  double t1 = birth_1 * (1.0 - Sigmoid(disk, 0.5, smoothing_disk))
-              + death_1 * Sigmoid(disk, 0.5, smoothing_disk);
-  double t2 = birth_2 * (1.0 - Sigmoid(disk, 0.5, smoothing_disk))
-              + death_2 * Sigmoid(disk, 0.5, smoothing_disk);
-  return Sigmoid(ring, t1, smoothing_ring) * (1.0 - Sigmoid(ring, t2, smoothing_ring));
-}
-
-const std::vector<std::vector<density>> &Smooth::Field() const { return field; };
+const std::vector<density> &Smooth::Field() const { return field; };
+int Smooth::Index(int i, int j) const { return i * Sizex() + j; }
 
 int Smooth::TorusDifference(int x1, int x2, int size) const {
-  int straight = std::abs(x2 - x1);
-  int wrapleft = std::abs(x2 - x1 + size);
-  int wrapright = std::abs(x2 - x1 - size);
-  if((straight < wrapleft) && (straight < wrapright)) {
-    return straight;
-  } else {
-    return (wrapleft < wrapright) ? wrapleft : wrapright;
-  }
+  auto const remainder = std::abs(x1 - x2) % size;
+  return std::min(remainder, std::abs(remainder - size));
 }
 
 double Smooth::Radius(int x1, int y1, int x2, int y2) const {
@@ -79,120 +74,92 @@ double Smooth::Radius(int x1, int y1, int x2, int y2) const {
 
 double Smooth::NormalisationDisk() const {
   double total = 0.0;
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
+  for(int x = 0; x < sizex; x++)
+    for(int y = 0; y < sizey; y++)
       total += Disk(Radius(0, 0, x, y));
-    }
-  };
   return total;
 }
 
 double Smooth::NormalisationRing() const {
   double total = 0.0;
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
+  for(int x = 0; x < sizex; x++)
+    for(int y = 0; y < sizey; y++)
       total += Ring(Radius(0, 0, x, y));
-    }
-  };
   return total;
 }
 
 filling Smooth::FillingDisk(int x, int y) const {
   double total = 0.0;
-  for(int x1 = 0; x1 < sizex; x1++) {
-    for(int y1 = 0; y1 < sizey; y1++) {
-      total += field[x1][y1] * Disk(Radius(x, y, x1, y1));
-    }
-  };
+  for(int x1 = 0; x1 < sizex; x1++)
+    for(int y1 = 0; y1 < sizey; y1++)
+      total += field[Index(x1, y1)] * Disk(Radius(x, y, x1, y1));
   return total / normalisation_disk;
 }
 
 filling Smooth::FillingRing(int x, int y) const {
   double total = 0.0;
-  for(int x1 = 0; x1 < sizex; x1++) {
-    for(int y1 = 0; y1 < sizey; y1++) {
-      total += field[x1][y1] * Ring(Radius(x, y, x1, y1));
-    }
-  };
+  for(int x1 = 0; x1 < sizex; x1++)
+    for(int y1 = 0; y1 < sizey; y1++)
+      total += field[Index(x1, y1)] * Ring(Radius(x, y, x1, y1));
   return total / normalisation_ring;
 }
 
-density Smooth::NewState(int x, int y) const {
-  return transition(FillingDisk(x, y), FillingRing(x, y));
-}
-
 void Smooth::Update() {
-  for(int x = 0; x < sizex; x++) {
+  for(int x = 0; x < sizex; x++)
     for(int y = 0; y < sizey; y++) {
-      work_field[x][y] = NewState(x, y);
+      auto const integrals = Integrals(x, y);
+      work_field[Index(x, y)] = Transition(integrals.first, integrals.second);
     }
-  }
-
   std::swap(field, work_field);
   frame++;
 }
 
-void Smooth::QuickUpdate() {
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
-      double ring_total = 0.0;
-      double disk_total = 0.0;
+std::pair<density, density> Smooth::Integrals(int x, int y) const {
+  density ring_total(0), disk_total(0);
+  for(int x1 = 0; x1 < sizex; x1++) {
+    int deltax = TorusDifference(x, x1, sizex);
+    if(deltax > outer + smoothing / 2)
+      continue;
 
-      for(int x1 = 0; x1 < sizex; x1++) {
-        int deltax = TorusDifference(x, x1, sizex);
-        if(deltax > outer + smoothing / 2)
-          continue;
+    for(int y1 = 0; y1 < sizey; y1++) {
+      int deltay = TorusDifference(y, y1, sizey);
+      if(deltay > outer + smoothing / 2)
+        continue;
 
-        for(int y1 = 0; y1 < sizey; y1++) {
-          int deltay = TorusDifference(y, y1, sizey);
-          if(deltay > outer + smoothing / 2)
-            continue;
-
-          double radius = std::sqrt(deltax * deltax + deltay * deltay);
-          double fieldv = field[x1][y1];
-          ring_total += fieldv * Ring(radius);
-          disk_total += fieldv * Disk(radius);
-        }
-      }
-
-      work_field[x][y]
-          = transition(disk_total / normalisation_disk, ring_total / normalisation_ring);
+      double radius = std::sqrt(deltax * deltax + deltay * deltay);
+      double fieldv = field[Index(x1, y1)];
+      ring_total += fieldv * Ring(radius);
+      disk_total += fieldv * Disk(radius);
     }
   }
-
-  std::swap(field, work_field);
-  frame++;
+  return {disk_total / NormalisationDisk(), ring_total / NormalisationRing()};
 }
 
 void Smooth::SeedRandom() {
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
-      field[x][y] = (static_cast<double>(rand()) / static_cast<double>(RAND_MAX));
-    }
-  }
+  for(int x = 0; x < sizex; x++)
+    for(int y = 0; y < sizey; y++)
+      field[Index(x, y)] += (static_cast<double>(rand()) / static_cast<double>(RAND_MAX));
 }
 
-void Smooth::SeedDisk() {
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
-      field[x][y] = Disk(Radius(0, 0, x, y));
-    }
-  }
+void Smooth::SeedConstant(density constant) { std::fill(field.begin(), field.end(), constant); }
+void Smooth::AddDisk(int x0, int y0) {
+  for(int x = 0; x < sizex; x++)
+    for(int y = 0; y < sizey; y++)
+      field[Index(x, y)] += Disk(Radius(x0, y0, x, y));
 }
 
-void Smooth::SeedRing() {
-  for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
-      field[x][y] = Ring(Radius(0, 0, x, y));
-    }
-  }
+void Smooth::AddRing(int x0, int y0) {
+  for(int x = 0; x < sizex; x++)
+    for(int y = 0; y < sizey; y++)
+      field[Index(x, y)] += Ring(Radius(x0, y0, x, y));
 }
+
+void Smooth::AddPixel(int x0, int y0, density value) { field[Index(x0, y0)] = value; }
 
 void Smooth::Write(std::ostream &out) {
   for(int x = 0; x < sizex; x++) {
-    for(int y = 0; y < sizey; y++) {
-      out << field[x][y] << " , ";
-    }
+    for(int y = 0; y < sizey; y++)
+      out << field[Index(x, y)] << " , ";
     out << std::endl;
   }
   out << std::endl;
