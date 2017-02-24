@@ -17,17 +17,29 @@ public:
   int Frame() const;
   const std::vector<density> &Field() const;
 
+  //! \brief Piecewise linear function defining the disk
+  //! \details
+  //! - 1 inside the disk
+  //! - 0 outside the disk
+  //! - 0 < x < 1 in the smoothing region
   double Disk(distance radius) const;
+  //! \brief Piecewise linear function defining the ring
+  //! \details
+  //! - 1 inside the ring
+  //! - 0 outside the ring
+  //! - 0 < x < 1 in the smoothing region
   double Ring(distance radius) const;
+  //! Smooth step function: 0 at -∞, 1 at +∞
   static double Sigmoid(double variable, double center, double width);
+  //! $e^{-4x / width}$: 0 at -∞, 1 at +∞
   static double Sigmoid(double x, double width);
   density Transition(filling disk, filling ring) const;
   int TorusDifference(int x1, int x2, int size) const;
   double Radius(int x1, int y1, int x2, int y2) const;
+  // Value of the integral over a single ring
   double NormalisationRing() const;
+  // Value of the integral over a single disk
   double NormalisationDisk() const;
-  filling FillingRing(int x, int y) const;
-  filling FillingDisk(int x, int y) const;
   //! Sets the playing field to random values
   void SeedRandom();
   //! Sets the playing field to constant values

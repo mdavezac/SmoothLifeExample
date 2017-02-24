@@ -21,28 +21,22 @@ int Smooth::Sizey() const { return sizey; }
 int Smooth::Size() const { return sizex * sizey; }
 
 double Smooth::Disk(distance radius) const {
-  if(radius > inner + smoothing / 2) {
+  if(radius > inner + smoothing / 2)
     return 0.0;
-  }
-  if(radius < inner - smoothing / 2) {
+  if(radius < inner - smoothing / 2)
     return 1.0;
-  }
   return (inner + smoothing / 2 - radius) / smoothing;
 }
 
 double Smooth::Ring(distance radius) const {
-  if(radius < inner - smoothing / 2) {
+  if(radius < inner - smoothing / 2)
     return 0.0;
-  }
-  if(radius < inner + smoothing / 2) {
+  if(radius < inner + smoothing / 2)
     return (radius + smoothing / 2 - inner) / smoothing;
-  }
-  if(radius < outer - smoothing / 2) {
+  if(radius < outer - smoothing / 2)
     return 1.0;
-  }
-  if(radius < outer + smoothing / 2) {
+  if(radius < outer + smoothing / 2)
     return (outer + smoothing / 2 - radius) / smoothing;
-  }
   return 0.0;
 }
 
@@ -86,22 +80,6 @@ double Smooth::NormalisationRing() const {
     for(int y = 0; y < sizey; y++)
       total += Ring(Radius(0, 0, x, y));
   return total;
-}
-
-filling Smooth::FillingDisk(int x, int y) const {
-  double total = 0.0;
-  for(int x1 = 0; x1 < sizex; x1++)
-    for(int y1 = 0; y1 < sizey; y1++)
-      total += field[Index(x1, y1)] * Disk(Radius(x, y, x1, y1));
-  return total / normalisation_disk;
-}
-
-filling Smooth::FillingRing(int x, int y) const {
-  double total = 0.0;
-  for(int x1 = 0; x1 < sizex; x1++)
-    for(int y1 = 0; y1 < sizey; y1++)
-      total += field[Index(x1, y1)] * Ring(Radius(x, y, x1, y1));
-  return total / normalisation_ring;
 }
 
 void Smooth::Update() {

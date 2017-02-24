@@ -82,16 +82,16 @@ TEST_CASE("FillingsAreUnityWhenSeeded") {
   smooth.SeedConstant(0);
   SECTION("DiskFillingUnityWithDiskSeed") {
     smooth.AddDisk();
-    REQUIRE(std::abs(smooth.FillingDisk(0, 0) - 1.0) < 0.1);
+    REQUIRE(std::get<0>(smooth.Integrals(0, 0)) == Approx(1).epsilon(0.1));
   }
 
   SECTION("Disk Filling Zero With Ring Seed") {
     smooth.AddRing();
-    REQUIRE(std::abs(smooth.FillingDisk(0, 0)) < 0.1);
+    REQUIRE(std::get<0>(smooth.Integrals(0, 0)) == Approx(0).epsilon(0.1));
   }
   SECTION("RingFillingUnityWithRingSeed") {
     smooth.AddRing();
-    REQUIRE(std::abs(smooth.FillingRing(0, 0) - 1.0) < 0.1);
+    REQUIRE(std::get<1>(smooth.Integrals(0, 0)) == Approx(1).epsilon(0.1));
   }
 }
 
@@ -102,11 +102,9 @@ TEST_CASE("FillingFieldHasRangeofValues") {
   double min = 1.0;
   double max = 0.0;
   for(int x = 0; x < 300; x++) {
-    double filling = smooth.FillingRing(x, 0);
-    if(filling < min)
-      min = filling;
-    if(filling > max)
-      max = filling;
+    double filling = std::get<1>(smooth.Integrals(x, 0));
+    min = std::min(min, filling);
+    max = std::max(max, filling);
   }
   REQUIRE(min < 0.2);
   REQUIRE(max > 0.4);
