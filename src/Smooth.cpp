@@ -6,11 +6,10 @@
 
 Smooth::Smooth(int sizex, int sizey, distance inner, filling birth_1, filling birth_2,
                filling death_1, filling death_2, filling smoothing_disk, filling smoothing_ring)
-    : sizex(sizex), sizey(sizey), inner(inner), birth_1(birth_1), birth_2(birth_2),
-      death_1(death_1), death_2(death_2), smoothing_disk(smoothing_disk),
-      smoothing_ring(smoothing_ring), outer(inner * 3), smoothing(1.0),
-      field1(sizex, std::vector<density>(sizey)), field2(sizex, std::vector<density>(sizey)),
-      field(&field1), fieldNew(&field2), frame(0) {
+    : sizex(sizex), sizey(sizey), field(sizex, std::vector<density>(sizey)),
+      work_field(sizex, std::vector<density>(sizey)), inner(inner), birth_1(birth_1),
+      birth_2(birth_2), death_1(death_1), death_2(death_2), smoothing_disk(smoothing_disk),
+      smoothing_ring(smoothing_ring), outer(inner * 3), smoothing(1.0) {
   normalisation_disk = NormalisationDisk();
   normalisation_ring = NormalisationRing();
 }
@@ -59,7 +58,7 @@ density Smooth::transition(filling disk, filling ring) const {
   return Sigmoid(ring, t1, smoothing_ring) * (1.0 - Sigmoid(ring, t2, smoothing_ring));
 }
 
-const std::vector<std::vector<density>> &Smooth::Field() const { return *field; };
+const std::vector<std::vector<density>> &Smooth::Field() const { return field; };
 
 int Smooth::TorusDifference(int x1, int x2, int size) const {
   int straight = std::abs(x2 - x1);
@@ -102,7 +101,7 @@ filling Smooth::FillingDisk(int x, int y) const {
   double total = 0.0;
   for(int x1 = 0; x1 < sizex; x1++) {
     for(int y1 = 0; y1 < sizey; y1++) {
-      total += (*field)[x1][y1] * Disk(Radius(x, y, x1, y1));
+      total += field[x1][y1] * Disk(Radius(x, y, x1, y1));
     }
   };
   return total / normalisation_disk;
@@ -112,7 +111,7 @@ filling Smooth::FillingRing(int x, int y) const {
   double total = 0.0;
   for(int x1 = 0; x1 < sizex; x1++) {
     for(int y1 = 0; y1 < sizey; y1++) {
-      total += (*field)[x1][y1] * Ring(Radius(x, y, x1, y1));
+      total += field[x1][y1] * Ring(Radius(x, y, x1, y1));
     }
   };
   return total / normalisation_ring;
@@ -125,14 +124,11 @@ density Smooth::NewState(int x, int y) const {
 void Smooth::Update() {
   for(int x = 0; x < sizex; x++) {
     for(int y = 0; y < sizey; y++) {
-      (*fieldNew)[x][y] = NewState(x, y);
+      work_field[x][y] = NewState(x, y);
     }
   }
 
-  std::vector<std::vector<density>> *fieldTemp;
-  fieldTemp = field;
-  field = fieldNew;
-  fieldNew = fieldTemp;
+  std::swap(field, work_field);
   frame++;
 }
 
@@ -153,28 +149,25 @@ void Smooth::QuickUpdate() {
             continue;
 
           double radius = std::sqrt(deltax * deltax + deltay * deltay);
-          double fieldv = (*field)[x1][y1];
+          double fieldv = field[x1][y1];
           ring_total += fieldv * Ring(radius);
           disk_total += fieldv * Disk(radius);
         }
       }
 
-      (*fieldNew)[x][y]
+      work_field[x][y]
           = transition(disk_total / normalisation_disk, ring_total / normalisation_ring);
     }
   }
 
-  std::vector<std::vector<density>> *fieldTemp;
-  fieldTemp = field;
-  field = fieldNew;
-  fieldNew = fieldTemp;
+  std::swap(field, work_field);
   frame++;
 }
 
 void Smooth::SeedRandom() {
   for(int x = 0; x < sizex; x++) {
     for(int y = 0; y < sizey; y++) {
-      (*field)[x][y] = (static_cast<double>(rand()) / static_cast<double>(RAND_MAX));
+      field[x][y] = (static_cast<double>(rand()) / static_cast<double>(RAND_MAX));
     }
   }
 }
@@ -182,7 +175,7 @@ void Smooth::SeedRandom() {
 void Smooth::SeedDisk() {
   for(int x = 0; x < sizex; x++) {
     for(int y = 0; y < sizey; y++) {
-      (*field)[x][y] = Disk(Radius(0, 0, x, y));
+      field[x][y] = Disk(Radius(0, 0, x, y));
     }
   }
 }
@@ -190,7 +183,7 @@ void Smooth::SeedDisk() {
 void Smooth::SeedRing() {
   for(int x = 0; x < sizex; x++) {
     for(int y = 0; y < sizey; y++) {
-      (*field)[x][y] = Ring(Radius(0, 0, x, y));
+      field[x][y] = Ring(Radius(0, 0, x, y));
     }
   }
 }
@@ -198,7 +191,7 @@ void Smooth::SeedRing() {
 void Smooth::Write(std::ostream &out) {
   for(int x = 0; x < sizex; x++) {
     for(int y = 0; y < sizey; y++) {
-      out << (*field)[x][y] << " , ";
+      out << field[x][y] << " , ";
     }
     out << std::endl;
   }

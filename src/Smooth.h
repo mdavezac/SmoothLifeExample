@@ -37,10 +37,8 @@ public:
 private:
   int sizex;
   int sizey;
-  std::vector<std::vector<density>> field1;
-  std::vector<std::vector<density>> field2;
-  std::vector<std::vector<density>> *field;
-  std::vector<std::vector<density>> *fieldNew;
+  std::vector<std::vector<density>> field;
+  std::vector<std::vector<density>> work_field;
   distance inner;
   filling birth_1;
   filling birth_2;
